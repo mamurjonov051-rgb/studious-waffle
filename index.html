@@ -1,0 +1,218 @@
+
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ma'lumotlar jadvali</title>
+    <link rel="stylesheet" href="./shocxa.css">
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>📋 Ma'lumotlar markazi</h1>
+            <p>Shaxsiy ma'lumotlarni boshqarish tizimi</p>
+        </header>
+
+        <div class="form-box">
+            <h2>Yangi ma'lumot qo'shish</h2>
+
+            <form id="personForm">
+                <input type="text" id="ism" placeholder="Ismingiz" required>
+                <input type="text" id="familya" placeholder="Familiyangiz" required>
+                <input type="number" id="yosh" placeholder="Yoshingiz" min="1" max="120" required>
+                <input type="text" id="shahar" placeholder="Shahringiz" required>
+
+                <label for="rasm">Rasm yuklash:</label>
+                <input type="file" id="rasm" accept="image/*">
+
+                <button type="submit" id="submitBtn">➕ Qo'shish</button>
+            </form>
+        </div>
+
+        <div class="table-box">
+            <h2>📊 Ma'lumotlar jadvali</h2>
+
+            <input type="text" id="search"
+                   placeholder="🔍 Ism yoki shahar bo'yicha qidirish...">
+
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rasm</th>
+                            <th>Ism</th>
+                            <th>Familiya</th>
+                            <th>Yosh</th>
+                            <th>Shahar</th>
+                            <th>Amallar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+
+            <p id="count">Jami: 0 ta ma'lumot</p>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById("personForm");
+        const tableBody = document.getElementById("tableBody");
+        const search = document.getElementById("search");
+        const rasmInput = document.getElementById("rasm");
+        const submitBtn = document.getElementById("submitBtn");
+
+        let people = JSON.parse(localStorage.getItem("people")) || [];
+        let editId = null;
+        let currentImage = "";
+
+        function saveData() {
+            localStorage.setItem("people", JSON.stringify(people));
+        }
+
+        rasmInput.addEventListener("change", function() {
+            const file = this.files[0];
+
+            if (!file) {
+                currentImage = "";
+                return;
+            }
+
+            if (!file.type.startsWith("image/")) {
+                alert("Faqat rasm yuklang!");
+                this.value = "";
+                return;
+            }
+
+            if (file.size > 2 * 1024 * 1024) {
+                alert("Rasm hajmi 2 MB dan oshmasin!");
+                this.value = "";
+                return;
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                currentImage = e.target.result;
+            };
+
+            reader.readAsDataURL(file);
+        });
+
+        form.addEventListener("submit", function(e) {
+            e.preventDefault();
+
+            const person = {
+                id: editId || Date.now(),
+                ism: document.getElementById("ism").value.trim(),
+                familya: document.getElementById("familya").value.trim(),
+                yosh: document.getElementById("yosh").value,
+                shahar: document.getElementById("shahar").value.trim(),
+                rasm: currentImage
+            };
+
+            if (editId !== null) {
+                const index = people.findIndex(p => p.id === editId);
+
+                if (index !== -1) {
+                    if (!currentImage) {
+                        person.rasm = people[index].rasm;
+                    }
+                    people[index] = person;
+                }
+            } else {
+                people.push(person);
+            }
+
+            saveData();
+            showData();
+
+            form.reset();
+            currentImage = "";
+            editId = null;
+            submitBtn.textContent = "➕ Qo'shish";
+        });
+
+        function showData() {
+            tableBody.innerHTML = "";
+
+            const filtered = people.filter(p =>
+                (p.ism + " " + p.shahar)
+                .toLowerCase()
+                .includes(search.value.toLowerCase())
+            );
+
+            filtered.forEach(p => {
+                const tr = document.createElement("tr");
+
+                const img = document.createElement("img");
+                img.src = p.rasm || "https://placehold.co/50x50?text=User";
+                img.className = "user-img";
+                img.alt = "Foydalanuvchi rasmi";
+
+                const imageCell = document.createElement("td");
+                imageCell.appendChild(img);
+                tr.appendChild(imageCell);
+
+                [p.ism, p.familya, p.yosh, p.shahar].forEach(value => {
+                    const td = document.createElement("td");
+                    td.textContent = value;
+                    tr.appendChild(td);
+                });
+
+                const actionCell = document.createElement("td");
+
+                const editBtn = document.createElement("button");
+                editBtn.textContent = "✏️";
+                editBtn.className = "edit";
+                editBtn.onclick = () => editPerson(p.id);
+
+                const deleteBtn = document.createElement("button");
+                deleteBtn.textContent = "🗑️";
+                deleteBtn.className = "delete";
+                deleteBtn.onclick = () => deletePerson(p.id);
+
+                actionCell.append(editBtn, deleteBtn);
+                tr.appendChild(actionCell);
+
+                tableBody.appendChild(tr);
+            });
+
+            document.getElementById("count").textContent =
+                "Jami: " + filtered.length + " ta ma'lumot";
+        }
+
+        function editPerson(id) {
+            const p = people.find(x => x.id === id);
+            if (!p) return;
+
+            document.getElementById("ism").value = p.ism;
+            document.getElementById("familya").value = p.familya;
+            document.getElementById("yosh").value = p.yosh;
+            document.getElementById("shahar").value = p.shahar;
+
+            editId = id;
+            currentImage = "";
+            rasmInput.value = "";
+            submitBtn.textContent = "💾 Saqlash";
+
+            window.scrollTo({top: 0, behavior: "smooth"});
+        }
+
+        function deletePerson(id) {
+            if (confirm("Bu ma'lumotni o'chirmoqchimisiz?")) {
+                people = people.filter(p => p.id !== id);
+                saveData();
+                showData();
+            }
+        }
+
+        search.addEventListener("input", showData);
+
+        showData();
+    </script>
+
+</body>
+</html>
